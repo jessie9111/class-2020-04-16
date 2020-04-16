@@ -21,6 +21,8 @@ library(rpart.plot)
 library(tidymodels)
 library(tidyverse)
 
+library(d3rain)
+
 # tidymodels really wants your dependent variable to be a factor. After all, you
 # have told tidymodels that it is not really a number --- it is a category with
 # two possible values. Keeping it as a 0/1 numeric is a hack. So, create a new
@@ -50,7 +52,23 @@ Interpret the coefficient of `income`.
 
 Write a sentence to your smart-but-not-mathematical boss which explains the association of income with preference for the Democratic candidate. Include a notion of uncertainty.
 
+```{r}
 
+logistic_mod <- logistic_reg() %>%
+  set_engine("glm")
+
+logistic_fit <- fit(logistic_mod,
+                    vote ~ ideology + income + gender + race,
+                    data = nes)
+
+logistic_fit$fit %>%
+  tidy(conf.int = TRUE) %>%
+  select(term, estimate, conf.low, conf.high)
+```
+Democrat = 1
+Republican = 0
+
+Since the income coefficient is negative, people with a higher income will be slightly more likely to vote for the Republican candidate than people with a lower income (about 4-5% more likely to vote for the Republican candidate with each increase on the five point scale).
 
 # Scene 2
 
@@ -66,7 +84,18 @@ Write two sentences explaining to your smart-but-not-mathematical boss what the 
 
 Optional: Can you write a simple dplr pipe which does, more or less, what the CART is doing, at least for the first node, and then confirms the numbers in the plot?
 
+```{r}
+tree_mod <- decision_tree() %>% 
+  set_engine("rpart", model = TRUE) %>% 
+  set_mode("classification")
 
+nes_tree <- fit(update(tree_mod, cost_complexity = 0),
+                vote ~ ideology + income + gender + race,
+                data = nes)
+
+nes_tree$fit %>% 
+  prp(extra = 6, varlen = 0, faclen = 0)
+```
 
 
 # Scene 3
@@ -81,6 +110,17 @@ How many trees did the forest use? Would we get better results if we used a diff
 
 What is OOB error?
 
+```{r}
+forest_mod <- rand_forest() %>%
+  set_engine("randomForest") %>%
+  set_mode("classification")
+
+nes_forest <- fit(forest_mod,
+                    vote ~ ideology + income + gender + race,
+                    data = nes)
+
+nes_forest 
+```
 
 
 # Scene 4
@@ -111,3 +151,18 @@ https://rpubs.com/evelyncai/d3rain_practice
 https://rpubs.com/diego_martinez/d3rain   
 
 Surely, you can make something better than what they did! You also have a much richer data set to play with than they had. Maybe separate panels for different years. Maybe voters rain down from different income or ideology categories across the top? There are many possibilities! Add a link with to [today's Preceptor's Notes](https://piazza.com/class/k5y1jx0s5ibe1?cid=721).
+
+```{r}
+
+nes %>% 
+  filter(year == 2000) %>%
+  filter(!is.na(income) | !is.na(vote)) %>% 
+  d3rain(income, vote, toolTip = income, title = "Voting Based on Income Category in 2000") %>%
+  drip_settings(dripSequence = 'iterate',
+                ease = 'bounce',
+                jitterWidth = 20,
+                dripSpeed = 1000,
+                dripFill = 'steelblue') %>% 
+  chart_settings(fontFamily = 'calibri',yAxisTickLocation = 'left')
+
+```
